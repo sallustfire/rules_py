@@ -51,6 +51,41 @@ def _patch_args_and_inputs(ctx):
 def _memory_args(ctx):
     return ["--monitor-memory"] if ctx.attr.monitor_memory else []
 
+def _tool_args(ctx, patch_args, archive, wheel_dir):
+    return ctx.attr.args + patch_args + _memory_args(ctx) + [archive.path, wheel_dir.path]
+
+def _run_build_tool(ctx, mnemonic, progress_message, patch_args, archive, wheel_dir, inputs, env):
+    windows = ctx.target_platform_has_constraint(
+        ctx.attr._windows_constraint[platform_common.ConstraintValueInfo],
+    )
+    tool_args = _tool_args(ctx, patch_args, archive, wheel_dir)
+    if windows:
+        # No bash to run venv_home_fixup.sh, and the relative-home failure it
+        # fixes is python-build-standalone/posix-specific; run the tool directly.
+        executable = ctx.executable.tool
+        arguments = tool_args
+    else:
+        # $1 = the tool the wrapper exec's; the rest is the tool's own argv.
+        executable = ctx.file._home_fixup
+        wrapped = ctx.actions.args()
+        wrapped.add(ctx.executable.tool.path)
+        wrapped.add_all(tool_args)
+        arguments = [wrapped]
+
+    ctx.actions.run(
+        mnemonic = mnemonic,
+        progress_message = progress_message,
+        executable = executable,
+        toolchain = None,
+        arguments = arguments,
+        inputs = inputs,
+        tools = [ctx.attr.tool[DefaultInfo].files_to_run],
+        outputs = [wheel_dir],
+        env = env,
+        exec_group = _TARGET_EXEC_GROUP,
+        resource_set = resource_set(ctx.attr),
+    )
+
 def _collect_toolchain_inputs_and_vars(ctx):
     """Gather files + Make-variable substitutions from `ctx.attr.toolchains`.
 
@@ -124,21 +159,15 @@ def _pep517_whl(ctx):
     # the action sandbox, which means the venv shim can find the interpreter
     # via the standard runfiles mechanism regardless of whether the interpreter
     # comes from an external repo or the main workspace.
-    ctx.actions.run(
+    _run_build_tool(
+        ctx,
         mnemonic = "PySdistBuild",
         progress_message = "Source compiling {} to a whl".format(archive.basename),
-        executable = ctx.executable.tool,
-        toolchain = None,
-        arguments = ctx.attr.args + patch_args + _memory_args(ctx) + [
-            archive.path,
-            wheel_dir.path,
-        ],
+        patch_args = patch_args,
+        archive = archive,
+        wheel_dir = wheel_dir,
         inputs = [archive] + patch_inputs,
-        tools = [ctx.attr.tool[DefaultInfo].files_to_run],
-        outputs = [wheel_dir],
         env = _common_env(ctx),
-        exec_group = _TARGET_EXEC_GROUP,
-        resource_set = resource_set(ctx.attr),
     )
 
     return [DefaultInfo(files = depset([wheel_dir]))]
@@ -162,24 +191,18 @@ def _pep517_native_whl(ctx):
         env["CC"] = cc_compiler
         env["CXX"] = cc_compiler
 
-    ctx.actions.run(
+    _run_build_tool(
+        ctx,
         mnemonic = "PySdistNativeBuild",
         progress_message = "Native source compiling {} to a whl".format(archive.basename),
-        executable = ctx.executable.tool,
-        toolchain = None,
-        arguments = ctx.attr.args + patch_args + _memory_args(ctx) + [
-            archive.path,
-            wheel_dir.path,
-        ],
+        patch_args = patch_args,
+        archive = archive,
+        wheel_dir = wheel_dir,
         inputs = depset(
             [archive] + patch_inputs,
             transitive = extra_inputs,
         ),
-        tools = [ctx.attr.tool[DefaultInfo].files_to_run],
-        outputs = [wheel_dir],
         env = env,
-        exec_group = _TARGET_EXEC_GROUP,
-        resource_set = resource_set(ctx.attr),
     )
 
     return [DefaultInfo(files = depset([wheel_dir]))]
@@ -208,6 +231,11 @@ _pep517_whl_attrs = {
         default = False,
         doc = "Report approximate Linux process-tree RSS while building the wheel.",
     ),
+    "_home_fixup": attr.label(
+        default = "//uv/private/pep517_whl:venv_home_fixup.sh",
+        allow_single_file = True,
+    ),
+    "_windows_constraint": attr.label(default = "@platforms//os:windows"),
 } | _PATCH_ATTRS | resource_set_attr
 
 pep517_whl = rule(

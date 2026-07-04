@@ -2,6 +2,7 @@ load("@bazel_lib//:bzl_library.bzl", "bzl_library")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load("@tar.bzl//tar:mtree.bzl", "mtree_mutate", "mtree_spec")
 load("@tar.bzl//tar:tar.bzl", "tar_rule")
 load("//py:defs.bzl", "py_binary", "py_library", "py_test")
@@ -13,7 +14,12 @@ package(default_visibility = [
 ])
 
 exports_files(
-    ["build_helper.py"],
+    [
+        "build_helper.py",
+        # Referenced as the `_home_fixup` implicit dep of pep517_(native_)whl,
+        # which is instantiated in generated sdist_build repos.
+        "venv_home_fixup.sh",
+    ],
     visibility = ["//visibility:public"],
 )
 
@@ -37,6 +43,12 @@ py_test(
     srcs = ["memory_monitor_test.py"],
     main = "memory_monitor_test.py",
     deps = [":memory_monitor"],
+)
+
+sh_test(
+    name = "venv_home_fixup_test",
+    srcs = ["venv_home_fixup_test.sh"],
+    data = ["venv_home_fixup.sh"],
 )
 
 py_binary(
