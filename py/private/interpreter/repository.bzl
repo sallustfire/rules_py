@@ -108,11 +108,12 @@ def _feature_filegroups(stdlib, is_windows):
     """
     lines = []
     all_excludes = []
+    layout_include = "include_windows" if is_windows else "include_posix"
 
     for feature_name, feature_info in INTERPRETER_FEATURES.items():
         patterns = [
             p.format(stdlib = stdlib)
-            for p in feature_info["include"] + feature_info.get("include_windows" if is_windows else "include_posix", [])
+            for p in feature_info["include"] + feature_info.get(layout_include, [])
         ]
         all_excludes.extend(patterns)
 
