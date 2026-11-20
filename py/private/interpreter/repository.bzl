@@ -100,22 +100,22 @@ def _find_symlinks(root):
                 pending.append((entry, rel + "/"))
     return links
 
-def _feature_filegroups(stdlib, is_windows):
+def _feature_filegroups(stdlib, layout):
     """Generate per-feature filegroup targets and config_settings.
+
+    `layout` is "posix" or "windows", selecting each feature's
+    `include_<layout>` patterns in addition to its common `include`.
 
     Returns a tuple of (feature_targets_str, all_feature_exclude_patterns).
     The exclude patterns are used to carve out feature files from the core filegroup.
     """
-    if is_windows:
-        return "", []
-
     lines = []
     all_excludes = []
 
     for feature_name, feature_info in INTERPRETER_FEATURES.items():
         patterns = [
             p.format(stdlib = stdlib)
-            for p in feature_info["include"]
+            for p in feature_info["include"] + feature_info.get("include_" + layout, [])
         ]
         all_excludes.extend(patterns)
 
@@ -152,8 +152,11 @@ py_pbs_archive_toolchain(
 
     # A free-threaded build's standard library is lib/python3.14t, not
     # lib/python3.14.
-    stdlib = "lib/python{}.{}{}".format(major, minor, "t" if "t" in abi_flags else "")
-    feature_targets, feature_excludes = _feature_filegroups(stdlib, is_windows)
+    if is_windows:
+        stdlib = "Lib"
+    else:
+        stdlib = "lib/python{}.{}{}".format(major, minor, "t" if "t" in abi_flags else "")
+    feature_targets, feature_excludes = _feature_filegroups(stdlib, "windows" if is_windows else "posix")
 
     include_dirs = ["include"]
     if not is_windows:
@@ -245,7 +248,14 @@ filegroup(
 """
         venv_dlls_attr = "    venv_dlls = [\":venv_dlls\"],\n"
         core_include = '["**/*.py", "**/*.pyd", "**/*.dll", "**/*.exe", "include/**", "Lib/**"]'
-        core_exclude = '["Lib/**/test/**", "Lib/**/tests/**", "**/__pycache__/*.pyc*"]'
+        core_exclude = repr(
+            [
+                stdlib + "/**/test/**",
+                stdlib + "/**/tests/**",
+                "**/__pycache__/*.pyc*",
+            ] +
+            feature_excludes,
+        )
     else:
         core_include = '["bin/**", "lib/**"]'
         core_exclude = repr(
@@ -260,9 +270,8 @@ filegroup(
 
     # Build the select() expressions for optional features
     feature_selects = ""
-    if not is_windows:
-        for feature_name in INTERPRETER_FEATURES.keys():
-            feature_selects += """\
+    for feature_name in INTERPRETER_FEATURES.keys():
+        feature_selects += """\
     + select({{
         ":_exclude_{feature}": [],
         "//conditions:default": [":_feature_{feature}"],

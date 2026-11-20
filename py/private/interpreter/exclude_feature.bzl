@@ -32,7 +32,10 @@ exclude_feature_flag = rule(
 # Feature definitions: maps feature name to the glob patterns it claims
 # from the interpreter install tree. Used by the interpreter repo rule
 # to generate per-feature filegroups. `{stdlib}` is the standard library
-# directory, such as lib/python3.14t for a free-threaded build.
+# directory: lib/python3.14 or lib/python3.14t on POSIX, Lib on Windows.
+# `include` holds patterns that name the feature's files in every install
+# layout; files under a directory only one layout has (lib/, DLLs/, tcl/)
+# go in that layout's optional `include_posix` or `include_windows`.
 INTERPRETER_FEATURES = {
     "headers": {
         "include": ["include/**"],
@@ -43,8 +46,8 @@ INTERPRETER_FEATURES = {
         "doc": "Man pages and documentation",
     },
     "tkinter": {
-        "include": [
-            "{stdlib}/tkinter/**",
+        "include": ["{stdlib}/tkinter/**"],
+        "include_posix": [
             "{stdlib}/lib-dynload/_tkinter*",
             "lib/libtcl*",
             "lib/libtk*",
@@ -52,6 +55,19 @@ INTERPRETER_FEATURES = {
             "lib/tk*/**",
             "lib/itcl*/**",
             "lib/thread*/**",
+        ],
+        "include_windows": [
+            "DLLs/_tkinter*",
+            "DLLs/tcl*",
+            "DLLs/tk*",
+            # Only tcl86t.dll imports zlib1.dll.
+            "DLLs/zlib1.dll",
+            # On Windows, _tkinter points Tcl at sys.base_prefix/tcl/tcl<version>.
+            "tcl/dde*/**",
+            "tcl/reg*/**",
+            "tcl/tcl*/**",
+            "tcl/tix*/**",
+            "tcl/tk*/**",
         ],
         "doc": "Tk GUI bindings",
     },

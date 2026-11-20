@@ -1,0 +1,54 @@
+# Windows interpreter files under exclude_feature, from a Linux host. The
+# interpreter's runtime files are resolved for a Windows target without
+# building a venv, which would need a Windows CC toolchain.
+
+load("@bazel_lib//lib:transitions.bzl", "platform_transition_filegroup")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+platform(
+    name = "windows_x64",
+    constraint_values = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+    flags = ["--@rules_py//py:python_version=3.12"],
+)
+
+platform(
+    name = "windows_x64_exclude_tkinter",
+    constraint_values = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+    flags = [
+        "--@rules_py//py:python_version=3.12",
+        "--@rules_py//py/private/interpreter:exclude_feature=tkinter",
+    ],
+)
+
+platform_transition_filegroup(
+    name = "interpreter",
+    srcs = ["@python_interpreters//:current_py_toolchain"],
+    target_platform = ":windows_x64",
+)
+
+platform_transition_filegroup(
+    name = "interpreter_exclude_tkinter",
+    srcs = ["@python_interpreters//:current_py_toolchain"],
+    target_platform = ":windows_x64_exclude_tkinter",
+)
+
+sh_test(
+    name = "test",
+    srcs = ["test.sh"],
+    args = [
+        "$(rlocationpaths :interpreter)",
+        "--",
+        "$(rlocationpaths :interpreter_exclude_tkinter)",
+    ],
+    data = [
+        ":interpreter",
+        ":interpreter_exclude_tkinter",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)

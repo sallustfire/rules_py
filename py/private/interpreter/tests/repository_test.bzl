@@ -9,7 +9,7 @@ _PYCACHE_EXCLUDE = 'exclude = ["**/__pycache__/*.pyc*"]'
 def _feature_filegroups_exclude_pycache_test_impl(ctx):
     env = unittest.begin(ctx)
 
-    targets, excludes = repository_testlib.feature_filegroups("lib/python3.13", False)
+    targets, excludes = repository_testlib.feature_filegroups("lib/python3.13", "posix")
 
     # One glob per feature, and every one of them ignores bytecode: the
     # distribution ships none, so a pyc under a feature directory was written
@@ -22,25 +22,27 @@ def _feature_filegroups_exclude_pycache_test_impl(ctx):
     # The feature patterns are still carved out of _core.
     asserts.true(env, "lib/python3.13/pydoc_data/**" in excludes)
 
-    # Windows generates no feature filegroups.
-    asserts.equals(env, ("", []), repository_testlib.feature_filegroups("lib/python3.13", True))
-
     return unittest.end(env)
 
 feature_filegroups_exclude_pycache_test = unittest.make(_feature_filegroups_exclude_pycache_test_impl)
 
-def _build_file(abi_flags):
+def _build_file(abi_flags, is_windows = False):
     return repository_testlib.build_file_content(
         major = "3",
         minor = "14",
         micro = "0",
-        python_bin = "bin/python3",
+        python_bin = "python.exe" if is_windows else "bin/python3",
         is_macos = False,
-        is_windows = False,
+        is_windows = is_windows,
         abi_flags = abi_flags,
         releaselevel = "final",
         serial = "0",
     )
+
+def _target(content, name):
+    """The text of the target `name` in generated BUILD `content`."""
+    start = content.index('name = "{}"'.format(name))
+    return content[start:content.index("\n)\n", start)]
 
 def _freethreaded_stdlib_excludes_test_impl(ctx):
     env = unittest.begin(ctx)
@@ -73,6 +75,31 @@ def _freethreaded_stdlib_excludes_test_impl(ctx):
     return unittest.end(env)
 
 freethreaded_stdlib_excludes_test = unittest.make(_freethreaded_stdlib_excludes_test_impl)
+
+def _windows_features_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    for abi_flags in ["", "t"]:
+        content = _build_file(abi_flags, is_windows = True)
+
+        # Every feature is selectable on Windows.
+        for feature in INTERPRETER_FEATURES:
+            asserts.true(env, '":_exclude_{}": [],'.format(feature) in content, feature)
+
+        # A Windows install's standard library is Lib, free-threaded or not,
+        # and the feature patterns, including tkinter's Windows-only Tcl/Tk
+        # DLLs, are carved out of _core.
+        core = _target(content, "_core")
+        for pattern in ["Lib/**/test/**", "Lib/idlelib/**", "Lib/tkinter/**", "DLLs/tcl*"]:
+            asserts.true(env, repr(pattern) in core, pattern)
+        asserts.true(env, repr("DLLs/tcl*") in _target(content, "_feature_tkinter"))
+
+        # POSIX-only patterns are never globbed against a Windows install.
+        asserts.false(env, '"lib/' in content, abi_flags)
+
+    return unittest.end(env)
+
+windows_features_test = unittest.make(_windows_features_test_impl)
 
 def _fake_path(path, real = None, children = None, exists = True):
     """A repository_ctx path: `real` set means a symlink resolving there."""
@@ -163,6 +190,7 @@ def repository_test_suite():
         "repository_tests",
         feature_filegroups_exclude_pycache_test,
         freethreaded_stdlib_excludes_test,
+        windows_features_test,
         find_symlinks_test,
         relative_link_test,
         build_file_records_symlinks_test,
