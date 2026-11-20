@@ -1,0 +1,16 @@
+load("@bazel_lib//lib:transitions.bzl", "platform_transition_filegroup")
+
+platform(
+    name = "windows_x64",
+    constraint_values = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+    flags = ["--@rules_py//py:python_version=3.13"],
+)
+
+platform_transition_filegroup(
+    name = "interpreter",
+    srcs = ["@python_interpreters//:current_py_toolchain"],
+    target_platform = ":windows_x64",
+)

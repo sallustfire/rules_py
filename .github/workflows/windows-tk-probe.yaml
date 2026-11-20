@@ -1,0 +1,46 @@
+# Throwaway: never part of an upstream PR.
+name: windows-tk-probe
+on:
+  push:
+    branches: [ci/windows-tk-probe]
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [before, after]
+    env:
+      VARIANT: ${{ matrix.variant }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Use the parent commit's feature table
+        if: matrix.variant == 'before'
+        run: git checkout HEAD~2 -- py/private/interpreter/exclude_feature.bzl && git diff --stat HEAD
+      - name: Stage the interpreter's runtime files
+        working-directory: .github/windows-tk-probe
+        run: |
+          set -euo pipefail
+          bazel build //:interpreter
+          ob="$(bazel info output_base | tr '\\' '/')"
+          dest="$(cygpath -u "$RUNNER_TEMP")/py"
+          mkdir -p "$dest"
+          bazel cquery //:interpreter --output=files > files.txt
+          echo "files: $(wc -l < files.txt)"
+          while IFS= read -r f; do
+            f="${f%$'\r'}"
+            rel="${f#external/}"
+            path="${rel#*/}"
+            mkdir -p "$dest/$(dirname "$path")"
+            cp "$(cygpath -u "$ob")/external/$rel" "$dest/$path"
+          done < files.txt
+          ls "$dest" "$dest/tcl" || true
+          echo "::notice title=${VARIANT} files::$(wc -l < files.txt) files, tcl/: $(find "$dest/tcl" -type f | wc -l)"
+      - name: Probe tkinter
+        run: '"$(cygpath -u "$RUNNER_TEMP")/py/python.exe" -I .github/windows-tk-probe/probe.py'
