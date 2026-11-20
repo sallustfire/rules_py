@@ -9,7 +9,7 @@ _PYCACHE_EXCLUDE = 'exclude = ["**/__pycache__/*.pyc*"]'
 def _feature_filegroups_exclude_pycache_test_impl(ctx):
     env = unittest.begin(ctx)
 
-    targets, excludes = repository_testlib.feature_filegroups("lib/python3.13", "posix")
+    targets, excludes = repository_testlib.feature_filegroups("lib/python3.13", False)
 
     # One glob per feature, and every one of them ignores bytecode: the
     # distribution ships none, so a pyc under a feature directory was written
@@ -19,8 +19,10 @@ def _feature_filegroups_exclude_pycache_test_impl(ctx):
     for line in globs:
         asserts.true(env, _PYCACHE_EXCLUDE in line, line)
 
-    # The feature patterns are still carved out of _core.
+    # The feature patterns, including POSIX-only ones, are still carved out
+    # of _core.
     asserts.true(env, "lib/python3.13/pydoc_data/**" in excludes)
+    asserts.true(env, "lib/libtcl*" in excludes)
 
     return unittest.end(env)
 
@@ -40,8 +42,10 @@ def _build_file(abi_flags, is_windows = False):
     )
 
 def _target(content, name):
-    """The text of the target `name` in generated BUILD `content`."""
-    start = content.index('name = "{}"'.format(name))
+    """The text of the target `name` in generated BUILD `content`, or "" if absent."""
+    start = content.find('name = "{}"'.format(name))
+    if start < 0:
+        return ""
     return content[start:content.index("\n)\n", start)]
 
 def _freethreaded_stdlib_excludes_test_impl(ctx):
@@ -84,15 +88,16 @@ def _windows_features_test_impl(ctx):
 
         # Every feature is selectable on Windows.
         for feature in INTERPRETER_FEATURES:
+            asserts.true(env, _target(content, "_exclude_" + feature) != "", feature)
             asserts.true(env, '":_exclude_{}": [],'.format(feature) in content, feature)
 
         # A Windows install's standard library is Lib, free-threaded or not,
         # and the feature patterns, including tkinter's Windows-only Tcl/Tk
         # DLLs, are carved out of _core.
         core = _target(content, "_core")
-        for pattern in ["Lib/**/test/**", "Lib/idlelib/**", "Lib/tkinter/**", "DLLs/tcl*"]:
+        for pattern in ["Lib/**/test/**", "Lib/idlelib/**", "Lib/tkinter/**", "DLLs/tcl*.dll"]:
             asserts.true(env, repr(pattern) in core, pattern)
-        asserts.true(env, repr("DLLs/tcl*") in _target(content, "_feature_tkinter"))
+        asserts.true(env, repr("DLLs/tcl*.dll") in _target(content, "_feature_tkinter"))
 
         # POSIX-only patterns are never globbed against a Windows install.
         asserts.false(env, '"lib/' in content, abi_flags)
