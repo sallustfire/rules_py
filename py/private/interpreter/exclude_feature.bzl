@@ -63,8 +63,14 @@ INTERPRETER_FEATURES = {
             "DLLs/tk*.dll",
             # Only tcl86t.dll imports zlib1.dll.
             "DLLs/zlib1.dll",
-            "tcl/**/*.dll",
-            "tcl/**/*.py",
+            # The Tcl, Tk and Tix libraries, which _tkinter loads from
+            # sys.base_prefix/tcl/tcl<version>; not tcl/'s top-level import
+            # libraries and *Config.sh, or tcl/nmake.
+            "tcl/dde*/**",
+            "tcl/reg*/**",
+            "tcl/tcl*/**",
+            "tcl/tix*/**",
+            "tcl/tk*/**",
         ],
         "doc": "Tk GUI bindings",
     },

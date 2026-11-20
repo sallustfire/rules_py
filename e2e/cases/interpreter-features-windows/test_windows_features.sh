@@ -22,7 +22,7 @@ expect() {
 }
 
 # tkinter's files on Windows: its package, the _tkinter extension, the Tcl
-# and Tk DLLs, and the Tcl extensions under tcl/.
+# and Tk DLLs, and the Tcl and Tk libraries under tcl/ that Tk() loads.
 TKINTER=(
     Lib/tkinter/__init__.py
     DLLs/_tkinter.pyd
@@ -30,6 +30,8 @@ TKINTER=(
     DLLs/tk86t.dll
     tcl/dde1.4/tcldde14.dll
     tcl/reg1.3/tclreg13.dll
+    tcl/tcl8.6/init.tcl
+    tcl/tk8.6/tk.tcl
 )
 
 case "$MODE" in
