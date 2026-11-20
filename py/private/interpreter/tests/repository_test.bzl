@@ -95,7 +95,7 @@ def _windows_features_test_impl(ctx):
         # and the feature patterns, including tkinter's Windows-only Tcl/Tk
         # DLLs, are carved out of _core.
         core = _target(content, "_core")
-        for pattern in ["Lib/**/test/**", "Lib/idlelib/**", "Lib/tkinter/**", "DLLs/tcl*.dll"]:
+        for pattern in ["Lib/**/test/**", "Lib/idlelib/**", "Lib/tkinter/**", "DLLs/tcl*.dll", "tcl/tcl*/**"]:
             asserts.true(env, repr(pattern) in core, pattern)
         asserts.true(env, repr("DLLs/tcl*.dll") in _target(content, "_feature_tkinter"))
 
