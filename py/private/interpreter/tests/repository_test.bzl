@@ -92,9 +92,9 @@ def _windows_features_test_impl(ctx):
 
         # A Windows install's standard library is Lib, free-threaded or not,
         # and the feature patterns, including tkinter's Windows-only Tcl/Tk
-        # DLLs, are carved out of _core.
+        # DLLs and tcl/ files, are carved out of _core.
         core_exclude = _target(content, "_core").split("exclude = ")[1]
-        for pattern in ["Lib/**/test/**", "Lib/idlelib/**", "Lib/tkinter/**", "DLLs/tcl*.dll", "include/**"]:
+        for pattern in ["Lib/**/test/**", "Lib/idlelib/**", "Lib/tkinter/**", "DLLs/tcl*.dll", "tcl/tcl*/**", "tcl/**/*.dll", "include/**"]:
             asserts.true(env, repr(pattern) in core_exclude, pattern)
         asserts.true(env, repr("DLLs/tcl*.dll") in _target(content, "_feature_tkinter"))
 

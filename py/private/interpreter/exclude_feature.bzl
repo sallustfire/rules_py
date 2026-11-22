@@ -64,6 +64,17 @@ INTERPRETER_FEATURES = {
             # Tcl's zlib. CPython compiles its own zlib into the interpreter DLL:
             # https://github.com/python/cpython/blob/v3.13.5/PCbuild/pythoncore.vcxproj
             "DLLs/zlib1.dll",
+            # Tcl's script library and the packages beside it. _tkinter
+            # locates the library at sys.base_prefix/tcl/tcl<version>:
+            # https://github.com/python/cpython/blob/v3.13.5/Modules/_tkinter.c#L138-L194
+            # tcl/'s top-level files and tcl/nmake are build inputs.
+            "tcl/dde*/**",
+            "tcl/reg*/**",
+            "tcl/tcl*/**",
+            "tcl/tix*/**",
+            "tcl/tk*/**",
+            # Any other Tcl package's DLLs and Python files, which _core would
+            # otherwise keep when tkinter is excluded.
             "tcl/**/*.dll",
             "tcl/**/*.py",
         ],
